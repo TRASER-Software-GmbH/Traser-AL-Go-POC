@@ -1,0 +1,47 @@
+name: Create PR Container
+author: TRASER Software GmbH
+description: Creates a Business Central container for a pull request with Traefik web access
+inputs:
+  shell:
+    description: Shell to use (powershell or pwsh)
+    required: false
+    default: powershell
+  pullRequestNumber:
+    description: Pull request number
+    required: true
+  containerUsername:
+    description: Container admin username
+    required: true
+  containerPassword:
+    description: Container admin password
+    required: true
+  bcLicense:
+    description: BC license file URL or path
+    required: true
+  bcVersion:
+    description: BC version (leave empty for latest)
+    required: false
+    default: ''
+  nugetFeedsToken:
+    description: NuGet feeds authentication token
+    required: false
+    default: ''
+  runs-on:
+    description: GitHub runner label
+    required: false
+    default: '[ self-hosted, windows ]'
+runs:
+  using: composite
+  steps:
+    - name: Create PR Container
+      shell: ${{ inputs.shell }}
+      env:
+        PR_NUMBER: ${{ inputs.pullRequestNumber }}
+        CONTAINER_USERNAME: ${{ inputs.containerUsername }}
+        CONTAINER_PASSWORD: ${{ inputs.containerPassword }}
+        BC_LICENSE: ${{ inputs.bcLicense }}
+        BC_VERSION: ${{ inputs.bcVersion }}
+        NUGET_TOKEN: ${{ inputs.nugetFeedsToken }}
+      run: |
+        $scriptPath = Join-Path ${{ github.action_path }} "CreatePRContainer.ps1"
+        . $scriptPath

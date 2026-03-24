@@ -1,0 +1,24 @@
+name: Cleanup PR Container
+author: TRASER Software GmbH
+description: Removes a Business Central PR container
+inputs:
+  shell:
+    description: Shell to use (powershell or pwsh)
+    required: false
+    default: powershell
+  pullRequestNumber:
+    description: Pull request number
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Cleanup PR Container
+      shell: ${{ inputs.shell }}
+      run: |
+        $containerName = "pr${{ inputs.pullRequestNumber }}"
+        if (Test-BcContainer -containerName $containerName) {
+            Write-Host "Removing container $containerName"
+            Remove-BcContainer -containerName $containerName
+        } else {
+            Write-Host "Container $containerName not found - already removed"
+        }
