@@ -1,0 +1,64 @@
+name: 'Sync Staging with Main'
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync-staging:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if staging branch exists
+        id: check
+        run: |
+          if git ls-remote --heads origin staging | grep -q staging; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create staging branch if missing
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          git checkout -b staging
+          git push origin staging
+
+      - name: Create or update PR
+        if: steps.check.outputs.exists == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          EXISTING_PR=$(gh pr list --base staging --head main --state open --json number --jq '.[0].number')
+
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR #$EXISTING_PR already exists, it will update automatically"
+          else
+            DIFF=$(git log origin/staging..origin/main --oneline)
+            if [ -z "$DIFF" ]; then
+              echo "No changes to sync"
+              exit 0
+            fi
+
+            gh pr create \
+              --base staging \
+              --head main \
+              --title "Sync staging with main" \
+              --body "$(cat <<'PREOF'
+          ## Auto-sync from main to staging
+
+          This PR keeps the staging branch current with main for AppSource validation.
+
+          **Auto-merges** if CI passes and no conflicts. If conflicts exist, manual resolution is required.
+          PREOF
+          )" \
+              --label "auto-sync"
+          fi
