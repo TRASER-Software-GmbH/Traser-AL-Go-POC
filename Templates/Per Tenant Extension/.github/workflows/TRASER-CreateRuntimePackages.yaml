@@ -1,0 +1,104 @@
+name: 'Create Runtime Packages'
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      targetBCVersions:
+        description: 'Target BC versions (JSON array)'
+        required: true
+        default: '["25.0","24.0"]'
+      runtimesValidFromApplication:
+        description: 'Minimum supported BC version'
+        required: true
+        default: '24.0'
+      runtimesValidToApplication:
+        description: 'Maximum supported BC version'
+        required: true
+        default: '26.0'
+
+permissions:
+  actions: read
+  contents: read
+  id-token: write
+  packages: write
+
+defaults:
+  run:
+    shell: powershell
+
+env:
+  ALGoOrgSettings: ${{ vars.ALGoOrgSettings }}
+  ALGoRepoSettings: ${{ vars.ALGoRepoSettings }}
+
+jobs:
+  Initialization:
+    runs-on: [ windows-latest ]
+    outputs:
+      githubRunner: ${{ steps.ReadSettings.outputs.GitHubRunnerJson }}
+      githubRunnerShell: ${{ steps.ReadSettings.outputs.GitHubRunnerShell }}
+      targetBCVersions: ${{ steps.params.outputs.targetBCVersions }}
+      runtimesValidFrom: ${{ steps.params.outputs.runtimesValidFrom }}
+      runtimesValidTo: ${{ steps.params.outputs.runtimesValidTo }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read settings
+        id: ReadSettings
+        uses: microsoft/AL-Go-Actions/ReadSettings@main
+        with:
+          shell: powershell
+
+      - name: Determine parameters
+        id: params
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "targetBCVersions=${{ github.event.inputs.targetBCVersions }}" >> $GITHUB_OUTPUT
+            echo "runtimesValidFrom=${{ github.event.inputs.runtimesValidFromApplication }}" >> $GITHUB_OUTPUT
+            echo "runtimesValidTo=${{ github.event.inputs.runtimesValidToApplication }}" >> $GITHUB_OUTPUT
+          else
+            # On release: read from repo settings or use defaults
+            echo 'targetBCVersions=["25.0","24.0"]' >> $GITHUB_OUTPUT
+            echo "runtimesValidFrom=24.0" >> $GITHUB_OUTPUT
+            echo "runtimesValidTo=26.0" >> $GITHUB_OUTPUT
+          fi
+
+  CreateRuntimePackages:
+    needs: [ Initialization ]
+    runs-on: ${{ fromJson(needs.Initialization.outputs.githubRunner) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read secrets
+        id: ReadSecrets
+        uses: microsoft/AL-Go-Actions/ReadSecrets@main
+        with:
+          shell: powershell
+          gitHubSecrets: ${{ toJson(secrets) }}
+          getSecrets: 'bcLicense,nuGetContext'
+
+      - name: Download release artifacts
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          mkdir -p .output/apps
+          gh release download "${{ github.event.release.tag_name }}" -p "*.app" -D .output/apps
+
+      - name: Create and Publish Runtime Packages
+        uses: microsoft/AL-Go-Actions/TRASER-CreateRuntimePackages@main
+        with:
+          shell: powershell
+          compiledAppsFolder: .output/apps
+          targetBCVersions: ${{ needs.Initialization.outputs.targetBCVersions }}
+          runtimesValidFromApplication: ${{ needs.Initialization.outputs.runtimesValidFrom }}
+          runtimesValidToApplication: ${{ needs.Initialization.outputs.runtimesValidTo }}
+          nugetFeedUrl: https://nuget.pkg.github.com/TRASER-Software-GmbH/index.json
+          nugetToken: ${{ secrets.GITHUB_TOKEN }}
+          licenseFile: ${{ steps.ReadSecrets.outputs.bcLicense }}
+          country: de

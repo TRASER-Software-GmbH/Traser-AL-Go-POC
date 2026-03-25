@@ -1,0 +1,64 @@
+name: Create Runtime Packages
+author: TRASER Software GmbH
+description: |
+  Creates runtime packages for compiled AL apps for multiple BC versions,
+  then publishes them as NuGet packages with the two-tier pattern:
+    - Indirect: {publisher}.{name}.runtime.{id} (version = app version)
+    - Version-specific: {publisher}.{name}.runtime-{appversion} (version = BC version)
+inputs:
+  shell:
+    description: Shell to use
+    required: false
+    default: powershell
+  compiledAppsFolder:
+    description: Path to compiled .app files
+    required: true
+  targetBCVersions:
+    description: JSON array of BC versions to create runtime packages for, e.g. '["24.0","25.0","26.0"]'
+    required: true
+  runtimesValidFromApplication:
+    description: Minimum BC version the runtime supports (e.g., "24.0")
+    required: true
+  runtimesValidToApplication:
+    description: Maximum BC version the runtime supports (e.g., "26.0")
+    required: true
+  runtimeValidForApplication:
+    description: Version range granularity - "major" or "minor"
+    required: false
+    default: major
+  nugetFeedUrl:
+    description: NuGet feed URL for runtime packages
+    required: true
+  nugetToken:
+    description: NuGet feed authentication token
+    required: true
+  outputFolder:
+    description: Output folder for runtime packages
+    required: false
+    default: .output/runtime
+  licenseFile:
+    description: BC license file URL
+    required: true
+  country:
+    description: BC country code
+    required: false
+    default: de
+runs:
+  using: composite
+  steps:
+    - name: Create and Publish Runtime Packages
+      shell: ${{ inputs.shell }}
+      env:
+        COMPILED_APPS_FOLDER: ${{ inputs.compiledAppsFolder }}
+        TARGET_BC_VERSIONS: ${{ inputs.targetBCVersions }}
+        RUNTIMES_VALID_FROM: ${{ inputs.runtimesValidFromApplication }}
+        RUNTIMES_VALID_TO: ${{ inputs.runtimesValidToApplication }}
+        RUNTIME_VALID_FOR: ${{ inputs.runtimeValidForApplication }}
+        NUGET_FEED_URL: ${{ inputs.nugetFeedUrl }}
+        NUGET_TOKEN: ${{ inputs.nugetToken }}
+        OUTPUT_FOLDER: ${{ inputs.outputFolder }}
+        LICENSE_FILE: ${{ inputs.licenseFile }}
+        COUNTRY: ${{ inputs.country }}
+      run: |
+        $scriptPath = Join-Path ${{ github.action_path }} "CreateRuntimePackages.ps1"
+        . $scriptPath
