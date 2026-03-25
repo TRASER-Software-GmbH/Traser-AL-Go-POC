@@ -2,7 +2,7 @@ name: 'Pull Request Build'
 
 on:
   pull_request:
-    branches: [ 'main', 'staging', 'release/*' ]
+    branches: [ 'main', 'staging' ]
   merge_group:
 
 concurrency:
